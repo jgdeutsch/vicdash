@@ -58,10 +58,7 @@ function classifyReplyRate(replyRate) {
 }
 
 function renderTable(tbody, data) {
-  const rows = [];
   const entries = Object.entries(data.campaigns || {});
-  // Debug guards for visibility issues
-  // eslint-disable-next-line no-console
   try { console.debug('renderTable entries:', entries); } catch {}
   console.log('renderTable entries:', entries);
 
@@ -101,59 +98,50 @@ function renderTable(tbody, data) {
     return dir * (av - bv);
   });
 
-  for (const r of enriched) {
-    const { id, c, sends, opens, replies, leadsOpen, leadsWon, leadsLost, openRate, replyRate } = r;
-    const openBadge = classifyOpenRate(openRate);
-    const replyBadge = classifyReplyRate(replyRate);
+  // Wipe existing rows
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
 
-    rows.push(`
-      <tr>
-        <td><a href="https://app.mailshake.com/${MAILSHAKE_TEAM_ID}/campaigns/all/${id}/prospects/list" target="_blank" rel="noopener">${c.title || 'Unknown Title'}</a></td>
-        <td>${(c.sender || '').toString()}</td>
-        <td>${sends.toLocaleString()}</td>
-        <td>${opens.toLocaleString()}</td>
-        <td><span class="pill ${openBadge}">${fmtPct(openRate)}</span></td>
-        <td>${replies.toLocaleString()}</td>
-        <td><span class="pill ${replyBadge}">${fmtPct(replyRate)}</span></td>
-        <td>${leadsOpen.toLocaleString()}</td>
-        <td>${leadsWon.toLocaleString()}</td>
-        <td>${leadsLost.toLocaleString()}</td>
-      </tr>
-    `);
+  if (enriched.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 10;
+    td.textContent = 'No campaigns to display';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
   }
 
-  try {
-    if (rows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10">No campaigns to display</td></tr>';
-    } else {
-      tbody.innerHTML = rows.join('');
+  for (const r of enriched) {
+    const { id, c, sends, opens, replies, leadsOpen, leadsWon, leadsLost, openRate, replyRate } = r;
+    const tr = document.createElement('tr');
+
+    const tdTitle = document.createElement('td');
+    const a = document.createElement('a');
+    a.href = `https://app.mailshake.com/${MAILSHAKE_TEAM_ID}/campaigns/all/${id}/prospects/list`;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = c.title || 'Unknown Title';
+    tdTitle.appendChild(a);
+    tr.appendChild(tdTitle);
+
+    const cells = [
+      (c.sender || '').toString(),
+      sends.toLocaleString(),
+      opens.toLocaleString(),
+      fmtPct(openRate),
+      replies.toLocaleString(),
+      fmtPct(replyRate),
+      leadsOpen.toLocaleString(),
+      leadsWon.toLocaleString(),
+      leadsLost.toLocaleString()
+    ];
+    for (let i = 0; i < cells.length; i++) {
+      const td = document.createElement('td');
+      td.textContent = cells[i];
+      tr.appendChild(td);
     }
-  } catch (e) {
-    // Fallback renderer - very robust plain cells
-    const plain = entries.map(([id, c]) => {
-      const sends = num(c.stats?.sends);
-      const opens = num(c.stats?.uniqueOpens ?? c.stats?.opens);
-      const replies = num(c.stats?.replies);
-      const leadsOpen = num(c.stats?.leads?.open);
-      const leadsWon = num(c.stats?.leads?.won);
-      const leadsLost = num(c.stats?.leads?.lost);
-      const openRate = sends ? opens / sends : 0;
-      const replyRate = sends ? replies / sends : 0;
-      return `
-        <tr>
-          <td>${c.title || ''}</td>
-          <td>${(c.sender || '').toString()}</td>
-          <td>${sends}</td>
-          <td>${opens}</td>
-          <td>${fmtPct(openRate)}</td>
-          <td>${replies}</td>
-          <td>${fmtPct(replyRate)}</td>
-          <td>${leadsOpen}</td>
-          <td>${leadsWon}</td>
-          <td>${leadsLost}</td>
-        </tr>`;
-    }).join('');
-    tbody.innerHTML = plain || '<tr><td colspan="10">No data</td></tr>';
+
+    tbody.appendChild(tr);
   }
 }
 
