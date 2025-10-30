@@ -127,6 +127,11 @@ async function render(providedData) {
   const data = providedData || await fetchStats();
   renderSummary(summary, data);
   renderTable(tbody, data);
+  const countEl = document.getElementById('campaign-count');
+  if (countEl) {
+    const n = Object.keys(data.campaigns || {}).length;
+    countEl.textContent = n ? `(${n})` : '(0)';
+  }
 }
 
 document.getElementById('refresh').addEventListener('click', async () => {
