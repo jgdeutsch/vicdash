@@ -43,7 +43,7 @@ Then the Refresh button in the UI will call `/api/refresh` and reload the data.
 
 ### Auth and Environment
 
-- Basic Auth password: set `DASHBOARD_PASSWORD` in `.env` (defaults to `#$F(jfi4f;w-lf-21)`).
+- Basic Auth password: set `DASHBOARD_PASSWORD` in `.env` (defaults to `#$F(jfi4dwrwf;w-lf-21)`).
 - Mailshake API key: set `MAILSHAKE_API_KEY` in `.env`. A minimal dotenv loader reads `.env` in the project root.
 
 Example `.env`:
