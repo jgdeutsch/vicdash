@@ -55,8 +55,24 @@ DASHBOARD_PASSWORD=#$F(jfi4f;w-lf-21)
 
 ### Deploying
 
-This repo is a small Node server. For Vercel, you can:
-- Use a Node serverless function setup or run behind `vercel dev` locally. If you want me to convert to Vercel functions (API routes) and static hosting, tell me and I’ll adapt the server accordingly.
+This repo includes Vercel Serverless API routes and a static UI in `public/`.
+
+Vercel setup:
+1) Push to GitHub (done)
+2) Import repo in Vercel
+3) Add Environment Variables (Production + Preview):
+   - `MAILSHAKE_API_KEY` = your key
+   - `DASHBOARD_PASSWORD` = your password (defaults to `#$F(jfi4f;w-lf-21)` if unset)
+   - optional `CAMPAIGN_IDS` (space-separated)
+4) Deploy
+
+Endpoints (same paths used by the UI):
+- `GET /api/stats` → returns live stats
+- `POST /api/refresh` → recomputes and returns stats (also used by Refresh button)
+- `GET /api/refresh-stream` → SSE logs during refresh (best-effort on serverless)
+- `POST /api/config` → accepted but stateless in serverless (use envs instead)
+
+Routing: `vercel.json` rewrites `/` to `public/index.html`.
 
 ### Notes
 
