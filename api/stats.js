@@ -8,6 +8,7 @@ export default async function handler(req, res) {
     let cached = await getCachedStats();
     console.log('Cached data keys:', cached ? Object.keys(cached) : 'null');
     console.log('Campaigns count:', cached?.campaigns ? Object.keys(cached.campaigns).length : 0);
+    console.log('Sample campaign:', cached?.campaigns ? JSON.stringify(cached.campaigns, null, 2) : 'none');
     // If no shared cache is available (e.g., no KV configured), compute on-demand
     if (!cached) {
       console.log('No cache found, computing on-demand');
