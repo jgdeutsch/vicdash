@@ -134,6 +134,7 @@ document.getElementById('refresh').addEventListener('click', async () => {
   const original = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Refreshing…';
+  let usedFinal = false;
   try {
     const logEl = document.getElementById('log');
     logEl.textContent = '';
@@ -182,6 +183,7 @@ document.getElementById('refresh').addEventListener('click', async () => {
       }
     }
     if (finalData) {
+      usedFinal = true;
       await render(finalData).catch(err => console.error(err));
       btn.textContent = original;
       btn.disabled = false;
@@ -190,7 +192,9 @@ document.getElementById('refresh').addEventListener('click', async () => {
   } catch (e) {
     alert('Refresh error: ' + e);
   } finally {
-    await render().catch(err => console.error(err));
+    if (!usedFinal) {
+      await render().catch(err => console.error(err));
+    }
     btn.textContent = original;
     btn.disabled = false;
   }

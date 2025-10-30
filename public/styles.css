@@ -98,7 +98,7 @@ tbody tr:hover { background: #E8F0FE; }
 .modal-actions { padding: 16px; display: flex; gap: 12px; justify-content: flex-end; border-top: 1px solid var(--md-sys-color-outline); }
 
 /* Log */
-.log { background: var(--md-sys-color-surface-variant); border: 1px solid var(--md-sys-color-outline); border-radius: 12px; padding: 16px; max-height: 288px; overflow: auto; line-height: 1.4; color: var(--md-sys-color-on-surface-variant); }
+.log { background: #0b0b0b; border: 1px solid #222; border-radius: 12px; padding: 16px; max-height: 288px; overflow: auto; line-height: 1.5; color: #e6e6e6; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
 
 /* Links */
 a { color: var(--accent); text-decoration: none; }
