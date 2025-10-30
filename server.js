@@ -323,6 +323,16 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (method === 'GET' && reqUrl === '/api/config-info') {
+    const info = {
+      campaignIds: CAMPAIGN_IDS,
+      apiKeySet: !!MAILSHAKE_API_KEY && MAILSHAKE_API_KEY !== 'FAKE_API_KEY_REPLACED_AT_RUNTIME'
+    };
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(info));
+    return;
+  }
+
   return void serveStatic(req, res);
 });
 

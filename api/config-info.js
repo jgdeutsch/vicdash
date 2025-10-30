@@ -1,30 +1,10 @@
-import { collectAllCampaigns } from '../lib/mailshake.js';
-import { setCachedStats } from '../lib/cache.js';
+import { getConfig } from '../lib/mailshake.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') { res.status(405).end(); return; }
   if (!checkAuth(req, res)) return;
-
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-transform',
-    'Connection': 'keep-alive'
-  });
-
-  const send = (msg) => {
-    res.write(`data: ${JSON.stringify({ t: Date.now(), msg })}\n\n`);
-  };
-
-  try {
-    send('Starting refresh');
-    const data = await collectAllCampaigns(send);
-    setCachedStats(data);
-    send('done');
-  } catch (e) {
-    send(`error: ${String(e && e.message || e)}`);
-  } finally {
-    res.end();
-  }
+  const { apiKey, campaignIds } = getConfig();
+  res.status(200).json({ campaignIds, apiKeySet: !!apiKey });
 }
 
 function checkAuth(req, res) {

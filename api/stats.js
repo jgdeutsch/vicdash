@@ -1,12 +1,13 @@
 import { collectAllCampaigns } from '../lib/mailshake.js';
+import { getCachedStats } from '../lib/cache.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') { res.status(405).end(); return; }
   if (!checkAuth(req, res)) return;
   try {
-    const data = await collectAllCampaigns();
+    const cached = getCachedStats();
     res.setHeader('Cache-Control', 'no-store');
-    res.status(200).json(data);
+    res.status(200).json(cached || { campaigns: {}, lastUpdated: '' });
   } catch (e) {
     res.status(500).json({ error: String(e && e.message || e) });
   }

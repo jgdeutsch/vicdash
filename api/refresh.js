@@ -1,4 +1,5 @@
 import { collectAllCampaigns } from '../lib/mailshake.js';
+import { setCachedStats } from '../lib/cache.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).end(); return; }
@@ -6,6 +7,7 @@ export default async function handler(req, res) {
   try {
     const logs = [];
     const data = await collectAllCampaigns((m) => logs.push(m));
+    setCachedStats(data);
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({ ...data, logs });
   } catch (e) {
