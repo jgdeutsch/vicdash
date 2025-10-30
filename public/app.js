@@ -173,17 +173,7 @@ document.getElementById('refresh').addEventListener('click', async () => {
     logEl.textContent += 'Connecting to refresh stream...\n';
     let lineCount = 0;
     let finalData = null;
-    // For safety while testing, refresh only the first campaign id
-    let idsQuery = '';
-    try {
-      const infoRes = await fetch('/api/config-info');
-      if (infoRes.ok) {
-        const info = await infoRes.json();
-        const first = Array.isArray(info.campaignIds) && info.campaignIds[0];
-        if (first) idsQuery = `?ids=${encodeURIComponent(first)}`;
-      }
-    } catch {}
-    const es = new EventSource('/api/refresh-stream' + idsQuery);
+    const es = new EventSource('/api/refresh-stream');
     await new Promise((resolve) => {
       es.onmessage = (ev) => {
         try {
@@ -206,7 +196,7 @@ document.getElementById('refresh').addEventListener('click', async () => {
     // Fallback if no stream lines were received
     if (lineCount === 0) {
       logEl.textContent += 'Stream not available, falling back to one-shot refresh...\n';
-      const res = await fetch('/api/refresh' + idsQuery, { method: 'POST' });
+      const res = await fetch('/api/refresh', { method: 'POST' });
       if (!res.ok) {
         const text = await res.text();
         alert('Refresh failed: ' + text);
