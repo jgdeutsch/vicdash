@@ -75,11 +75,14 @@ table.data { width: 100%; border-collapse: collapse; background: var(--panel); }
 table.data th, table.data td { padding: 16px; border-bottom: 1px solid var(--md-sys-color-outline); text-align: left; }
 table.data td { font-weight: 400; color: var(--text); }
 table.data th { font-weight: 600; color: var(--md-sys-color-on-surface-variant); }
-table.data thead th { position: sticky; top: 64px; background: var(--md-sys-color-surface); z-index: 5; }
+/* Temporarily disable sticky header to avoid overlap issues in some environments */
+table.data thead th { position: static; top: auto; background: var(--md-sys-color-surface); z-index: 1; }
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable .sort { opacity: 0.6; margin-left: 6px; font-size: 12px; }
 th.sortable.sorted .sort { opacity: 1; color: var(--accent); }
 tbody tr:hover { background: #E8F0FE; }
+table.data tbody tr { background: #ffffff; }
+table.data tbody td { color: #202124; }
 
 .pill { display: inline-block; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .pill.bad { background: var(--chip-pink-bg); color: var(--chip-pink-fg); }
