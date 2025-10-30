@@ -137,7 +137,20 @@ function renderTable(tbody, data) {
     ];
     for (let i = 0; i < cells.length; i++) {
       const td = document.createElement('td');
-      td.textContent = cells[i];
+      // i === 3 => Open %, i === 5 => Reply %
+      if (i === 3) {
+        const span = document.createElement('span');
+        span.className = `pill ${classifyOpenRate(openRate)}`;
+        span.textContent = cells[i];
+        td.appendChild(span);
+      } else if (i === 5) {
+        const span = document.createElement('span');
+        span.className = `pill ${classifyReplyRate(replyRate)}`;
+        span.textContent = cells[i];
+        td.appendChild(span);
+      } else {
+        td.textContent = cells[i];
+      }
       tr.appendChild(td);
     }
 
