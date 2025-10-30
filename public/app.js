@@ -186,13 +186,12 @@ function openSettings() {
   const close = () => document.querySelector('.modal')?.remove();
   document.getElementById('closeSettings').addEventListener('click', close);
   document.getElementById('saveSettings').addEventListener('click', async () => {
-    const apiKey = document.getElementById('apiKeyInput').value.trim();
     const campaignIds = document.getElementById('campaignIdsInput').value.trim();
     try {
       const res = await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey, campaignIds })
+        body: JSON.stringify({ campaignIds })
       });
       if (!res.ok) {
         const text = await res.text();
@@ -206,6 +205,13 @@ function openSettings() {
       alert('Save error: ' + e);
     }
   });
+
+  // Prefill from server
+  fetch('/api/config-info').then(r => r.ok ? r.json() : null).then(info => {
+    if (info && Array.isArray(info.campaignIds)) {
+      document.getElementById('campaignIdsInput').value = info.campaignIds.join(' ');
+    }
+  }).catch(() => {});
 }
 
 document.getElementById('settings').addEventListener('click', openSettings);
