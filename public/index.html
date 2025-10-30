@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VicDash</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="topbar elevation-2">
+    <div class="brand">VicDash</div>
+    <div class="controls">
+      <button id="settings" class="secondary">Settings</button>
+      <button id="refresh">Refresh</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="summary" id="summary"></section>
+
+    <section>
+      <h2>Campaigns</h2>
+      <div class="table-wrap">
+        <table class="data" id="campaign-table">
+          <thead>
+            <tr>
+              <th data-sort="campaign" class="sortable">Campaign <span class="sort"></span></th>
+              <th data-sort="sender" class="sortable">Sender <span class="sort"></span></th>
+              <th data-sort="sends" class="sortable">Sends <span class="sort"></span></th>
+              <th data-sort="opens" class="sortable">Opens <span class="sort"></span></th>
+              <th data-sort="openRate" class="sortable">Open % <span class="sort"></span></th>
+              <th data-sort="replies" class="sortable">Replies <span class="sort"></span></th>
+              <th data-sort="replyRate" class="sortable">Reply % <span class="sort"></span></th>
+              <th data-sort="leadsOpen" class="sortable">Leads Open <span class="sort"></span></th>
+              <th data-sort="leadsWon" class="sortable">Leads Won <span class="sort"></span></th>
+              <th data-sort="leadsLost" class="sortable">Leads Lost <span class="sort"></span></th>
+            </tr>
+          </thead>
+          <tbody id="campaign-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Activity Log</h2>
+      <pre id="log" class="log"></pre>
+    </section>
+  </main>
+
+  <script src="/app.js" type="module"></script>
+  <template id="settings-template">
+    <div class="modal">
+      <div class="modal-card">
+        <div class="modal-header">Settings</div>
+        <div class="modal-body">
+          <label>API Key <input id="apiKeyInput" type="password" placeholder="Mailshake API Key" /></label>
+          <label>Campaign IDs (space-separated) <input id="campaignIdsInput" type="text" placeholder="1472607 1472605 ..." /></label>
+        </div>
+        <div class="modal-actions">
+          <button id="saveSettings">Save</button>
+          <button id="closeSettings" class="secondary">Close</button>
+        </div>
+      </div>
+    </div>
+  </template>
+  <noscript>Please enable JavaScript to view this dashboard.</noscript>
+</body>
+
+</html>
+
+
