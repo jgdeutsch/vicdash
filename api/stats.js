@@ -6,13 +6,17 @@ export default async function handler(req, res) {
   if (!checkAuth(req, res)) return;
   try {
     let cached = await getCachedStats();
+    console.log('Cached data keys:', cached ? Object.keys(cached) : 'null');
+    console.log('Campaigns count:', cached?.campaigns ? Object.keys(cached.campaigns).length : 0);
     // If no shared cache is available (e.g., no KV configured), compute on-demand
     if (!cached) {
+      console.log('No cache found, computing on-demand');
       cached = await collectAllCampaigns();
     }
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json(cached || { campaigns: {}, lastUpdated: '' });
   } catch (e) {
+    console.error('Stats error:', e);
     res.status(500).json({ error: String(e && e.message || e) });
   }
 }
