@@ -52,8 +52,8 @@ function classifyOpenRate(openRate) {
 
 function classifyReplyRate(replyRate) {
   const pct = replyRate * 100;
-  if (pct >= 6) return 'good';
-  if (pct >= 4) return 'warn';
+  if (pct >= 7) return 'good';
+  if (pct >= 5) return 'warn';
   return 'bad';
 }
 
