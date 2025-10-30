@@ -17,7 +17,9 @@ export default async function handler(req, res) {
 
   try {
     send('Starting refresh');
-    const data = await collectAllCampaigns(send);
+    const idsParam = (req.query?.ids || '').toString();
+    const ids = idsParam ? idsParam.split(/[ ,]+/).map(n => Number(n)).filter(Boolean) : undefined;
+    const data = await collectAllCampaigns(send, ids);
     setCachedStats(data);
     // Emit final payload so clients don't need to re-fetch from a different instance
     res.write(`event: final\n`);

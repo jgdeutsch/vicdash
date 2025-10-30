@@ -6,7 +6,9 @@ export default async function handler(req, res) {
   if (!checkAuth(req, res)) return;
   try {
     const logs = [];
-    const data = await collectAllCampaigns((m) => logs.push(m));
+    const idsParam = (req.query?.ids || '').toString();
+    const ids = idsParam ? idsParam.split(/[ ,]+/).map(n => Number(n)).filter(Boolean) : undefined;
+    const data = await collectAllCampaigns((m) => logs.push(m), ids);
     setCachedStats(data);
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({ ...data, logs });
