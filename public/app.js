@@ -60,6 +60,7 @@ function classifyReplyRate(replyRate) {
 function renderTable(tbody, data) {
   const rows = [];
   const entries = Object.entries(data.campaigns || {});
+  console.log('renderTable entries:', entries);
 
   // Build comparable metrics per row for sorting
   const enriched = entries.map(([id, c]) => {
@@ -125,6 +126,9 @@ async function render(providedData) {
   const summary = document.getElementById('summary');
   const tbody = document.getElementById('campaign-body');
   const data = providedData || await fetchStats();
+  console.log('Render data:', data);
+  console.log('Campaigns:', data.campaigns);
+  console.log('Campaigns keys:', Object.keys(data.campaigns || {}));
   renderSummary(summary, data);
   renderTable(tbody, data);
   const countEl = document.getElementById('campaign-count');
