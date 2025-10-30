@@ -60,6 +60,9 @@ function classifyReplyRate(replyRate) {
 function renderTable(tbody, data) {
   const rows = [];
   const entries = Object.entries(data.campaigns || {});
+  // Debug guards for visibility issues
+  // eslint-disable-next-line no-console
+  try { console.debug('renderTable entries:', entries); } catch {}
   console.log('renderTable entries:', entries);
 
   // Build comparable metrics per row for sorting
@@ -119,7 +122,39 @@ function renderTable(tbody, data) {
     `);
   }
 
-  tbody.innerHTML = rows.join('');
+  try {
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10">No campaigns to display</td></tr>';
+    } else {
+      tbody.innerHTML = rows.join('');
+    }
+  } catch (e) {
+    // Fallback renderer - very robust plain cells
+    const plain = entries.map(([id, c]) => {
+      const sends = num(c.stats?.sends);
+      const opens = num(c.stats?.uniqueOpens ?? c.stats?.opens);
+      const replies = num(c.stats?.replies);
+      const leadsOpen = num(c.stats?.leads?.open);
+      const leadsWon = num(c.stats?.leads?.won);
+      const leadsLost = num(c.stats?.leads?.lost);
+      const openRate = sends ? opens / sends : 0;
+      const replyRate = sends ? replies / sends : 0;
+      return `
+        <tr>
+          <td>${c.title || ''}</td>
+          <td>${(c.sender || '').toString()}</td>
+          <td>${sends}</td>
+          <td>${opens}</td>
+          <td>${fmtPct(openRate)}</td>
+          <td>${replies}</td>
+          <td>${fmtPct(replyRate)}</td>
+          <td>${leadsOpen}</td>
+          <td>${leadsWon}</td>
+          <td>${leadsLost}</td>
+        </tr>`;
+    }).join('');
+    tbody.innerHTML = plain || '<tr><td colspan="10">No data</td></tr>';
+  }
 }
 
 async function render(providedData) {
