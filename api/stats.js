@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') { res.status(405).end(); return; }
   if (!checkAuth(req, res)) return;
   try {
-    const cached = getCachedStats();
+    const cached = await getCachedStats();
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json(cached || { campaigns: {}, lastUpdated: '' });
   } catch (e) {

@@ -64,7 +64,10 @@ Vercel setup:
    - `MAILSHAKE_API_KEY` = your key
    - `DASHBOARD_PASSWORD` = your password (defaults to `#$F(jfi4f;w-lf-21)` if unset)
    - optional `CAMPAIGN_IDS` (space-separated)
-4) Deploy
+4) Set up Vercel KV (Storage tab in Vercel dashboard):
+   - Create a new KV database
+   - This is required for serverless functions to share cached campaign data
+5) Deploy
 
 Endpoints (same paths used by the UI):
 - `GET /api/stats` → returns live stats

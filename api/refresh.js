@@ -9,7 +9,7 @@ export default async function handler(req, res) {
     const idsParam = (req.query?.ids || '').toString();
     const ids = idsParam ? idsParam.split(/[ ,]+/).map(n => Number(n)).filter(Boolean) : undefined;
     const data = await collectAllCampaigns((m) => logs.push(m), ids);
-    setCachedStats(data);
+    await setCachedStats(data);
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({ ...data, logs });
   } catch (e) {
