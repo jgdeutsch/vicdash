@@ -64,9 +64,9 @@ Vercel setup:
    - `MAILSHAKE_API_KEY` = your key
    - `DASHBOARD_PASSWORD` = your password (defaults to `#$F(jfi4f;w-lf-21)` if unset)
    - optional `CAMPAIGN_IDS` (space-separated)
-4) Set up Vercel KV (Storage tab in Vercel dashboard):
-   - Create a new KV database
-   - This is required for serverless functions to share cached campaign data
+4) Optional persistence options (choose one):
+   - Neon Postgres (free tier): create a database, copy its `DATABASE_URL`, and add it as an Environment Variable. The app will create a `vicdash_cache` table automatically and store the latest stats JSON there.
+   - Vercel KV: create a KV database in the Marketplace and link it to the project. The app will use KV if Postgres is not configured.
 5) Deploy
 
 Endpoints (same paths used by the UI):
