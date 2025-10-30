@@ -5,7 +5,11 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') { res.status(405).end(); return; }
   if (!checkAuth(req, res)) return;
   try {
-    const cached = await getCachedStats();
+    let cached = await getCachedStats();
+    // If no shared cache is available (e.g., no KV configured), compute on-demand
+    if (!cached) {
+      cached = await collectAllCampaigns();
+    }
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json(cached || { campaigns: {}, lastUpdated: '' });
   } catch (e) {
