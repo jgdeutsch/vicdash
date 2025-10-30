@@ -19,6 +19,9 @@ export default async function handler(req, res) {
     send('Starting refresh');
     const data = await collectAllCampaigns(send);
     setCachedStats(data);
+    // Emit final payload so clients don't need to re-fetch from a different instance
+    res.write(`event: final\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
     send('done');
   } catch (e) {
     send(`error: ${String(e && e.message || e)}`);

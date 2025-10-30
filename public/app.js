@@ -121,10 +121,10 @@ function renderTable(tbody, data) {
   tbody.innerHTML = rows.join('');
 }
 
-async function render() {
+async function render(providedData) {
   const summary = document.getElementById('summary');
   const tbody = document.getElementById('campaign-body');
-  const data = await fetchStats();
+  const data = providedData || await fetchStats();
   renderSummary(summary, data);
   renderTable(tbody, data);
 }
@@ -139,6 +139,7 @@ document.getElementById('refresh').addEventListener('click', async () => {
     logEl.textContent = '';
     logEl.textContent += 'Connecting to refresh stream...\n';
     let lineCount = 0;
+    let finalData = null;
     const es = new EventSource('/api/refresh-stream');
     await new Promise((resolve) => {
       es.onmessage = (ev) => {
@@ -153,6 +154,9 @@ document.getElementById('refresh').addEventListener('click', async () => {
           lineCount++;
         }
       };
+      es.addEventListener('final', (ev) => {
+        try { finalData = JSON.parse(ev.data); } catch {}
+      });
       es.onerror = () => { es.close(); resolve(); };
     });
 
@@ -166,6 +170,12 @@ document.getElementById('refresh').addEventListener('click', async () => {
       } else {
         logEl.textContent += 'Refresh completed.\n';
       }
+    }
+    if (finalData) {
+      await render(finalData).catch(err => console.error(err));
+      btn.textContent = original;
+      btn.disabled = false;
+      return;
     }
   } catch (e) {
     alert('Refresh error: ' + e);
