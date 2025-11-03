@@ -72,7 +72,8 @@ function renderTable(tbody, data) {
     const leadsLost = num(c.stats?.leads?.lost);
     const openRate = sends ? opens / sends : 0;
     const replyRate = sends ? replies / sends : 0;
-    return { id, c, sends, opens, replies, leadsOpen, leadsWon, leadsLost, openRate, replyRate };
+    const winRate = sends ? leadsWon / sends : 0;
+    return { id, c, sends, opens, replies, leadsOpen, leadsWon, leadsLost, openRate, replyRate, winRate };
   });
 
   enriched.sort((a, b) => {
@@ -86,6 +87,7 @@ function renderTable(tbody, data) {
         case 'openRate': return r.openRate;
         case 'replies': return r.replies;
         case 'replyRate': return r.replyRate;
+        case 'winRate': return r.winRate;
         case 'leadsOpen': return r.leadsOpen;
         case 'leadsWon': return r.leadsWon;
         case 'leadsLost': return r.leadsLost;
@@ -104,7 +106,7 @@ function renderTable(tbody, data) {
   if (enriched.length === 0) {
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 10;
+    td.colSpan = 11;
     td.textContent = 'No campaigns to display';
     tr.appendChild(td);
     tbody.appendChild(tr);
@@ -112,7 +114,7 @@ function renderTable(tbody, data) {
   }
 
   for (const r of enriched) {
-    const { id, c, sends, opens, replies, leadsOpen, leadsWon, leadsLost, openRate, replyRate } = r;
+    const { id, c, sends, opens, replies, leadsOpen, leadsWon, leadsLost, openRate, replyRate, winRate } = r;
     const tr = document.createElement('tr');
 
     const tdTitle = document.createElement('td');
@@ -131,6 +133,7 @@ function renderTable(tbody, data) {
       fmtPct(openRate),
       replies.toLocaleString(),
       fmtPct(replyRate),
+      fmtPct(winRate),
       leadsOpen.toLocaleString(),
       leadsWon.toLocaleString(),
       leadsLost.toLocaleString()
