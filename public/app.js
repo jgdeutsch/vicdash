@@ -57,6 +57,13 @@ function classifyReplyRate(replyRate) {
   return 'bad';
 }
 
+function classifyWinRate(winRate) {
+  const pct = winRate * 100;
+  if (pct >= 4) return 'good';
+  if (pct >= 2) return 'warn';
+  return 'bad';
+}
+
 function renderTable(tbody, data) {
   const entries = Object.entries(data.campaigns || {});
   try { console.debug('renderTable entries:', entries); } catch {}
@@ -130,25 +137,30 @@ function renderTable(tbody, data) {
       (c.sender || '').toString(),
       sends.toLocaleString(),
       opens.toLocaleString(),
-      fmtPct(openRate),
       replies.toLocaleString(),
-      fmtPct(replyRate),
-      fmtPct(winRate),
       leadsOpen.toLocaleString(),
       leadsWon.toLocaleString(),
-      leadsLost.toLocaleString()
+      leadsLost.toLocaleString(),
+      fmtPct(openRate),
+      fmtPct(replyRate),
+      fmtPct(winRate)
     ];
     for (let i = 0; i < cells.length; i++) {
       const td = document.createElement('td');
-      // i === 3 => Open %, i === 5 => Reply %
-      if (i === 3) {
+      // i === 7 => Open %, i === 8 => Reply %, i === 9 => Win %
+      if (i === 7) {
         const span = document.createElement('span');
         span.className = `pill ${classifyOpenRate(openRate)}`;
         span.textContent = cells[i];
         td.appendChild(span);
-      } else if (i === 5) {
+      } else if (i === 8) {
         const span = document.createElement('span');
         span.className = `pill ${classifyReplyRate(replyRate)}`;
+        span.textContent = cells[i];
+        td.appendChild(span);
+      } else if (i === 9) {
+        const span = document.createElement('span');
+        span.className = `pill ${classifyWinRate(winRate)}`;
         span.textContent = cells[i];
         td.appendChild(span);
       } else {
