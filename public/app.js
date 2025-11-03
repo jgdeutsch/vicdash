@@ -201,7 +201,13 @@ document.getElementById('refresh').addEventListener('click', async () => {
     logEl.textContent += 'Connecting to refresh stream...\n';
     let lineCount = 0;
     let finalData = null;
-    const es = new EventSource('/api/refresh-stream');
+    // Use persisted campaign ID override if present
+    let idsQuery = '';
+    try {
+      const override = (localStorage.getItem('campaignIdsOverride') || '').trim();
+      if (override) idsQuery = `?ids=${encodeURIComponent(override)}`;
+    } catch {}
+    const es = new EventSource('/api/refresh-stream' + idsQuery);
     await new Promise((resolve) => {
       es.onmessage = (ev) => {
         try {
@@ -224,7 +230,7 @@ document.getElementById('refresh').addEventListener('click', async () => {
     // Fallback if no stream lines were received
     if (lineCount === 0) {
       logEl.textContent += 'Stream not available, falling back to one-shot refresh...\n';
-      const res = await fetch('/api/refresh', { method: 'POST' });
+      const res = await fetch('/api/refresh' + idsQuery, { method: 'POST' });
       if (!res.ok) {
         const text = await res.text();
         alert('Refresh failed: ' + text);
@@ -262,6 +268,7 @@ function openSettings() {
   document.getElementById('saveSettings').addEventListener('click', async () => {
     const campaignIds = document.getElementById('campaignIdsInput').value.trim();
     try {
+      try { localStorage.setItem('campaignIdsOverride', campaignIds); } catch {}
       const res = await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -282,9 +289,12 @@ function openSettings() {
 
   // Prefill from server
   fetch('/api/config-info').then(r => r.ok ? r.json() : null).then(info => {
-    if (info && Array.isArray(info.campaignIds)) {
-      document.getElementById('campaignIdsInput').value = info.campaignIds.join(' ');
+    let value = '';
+    try { value = (localStorage.getItem('campaignIdsOverride') || '').trim(); } catch {}
+    if (!value && info && Array.isArray(info.campaignIds)) {
+      value = info.campaignIds.join(' ');
     }
+    if (value) document.getElementById('campaignIdsInput').value = value;
   }).catch(() => {});
 }
 
