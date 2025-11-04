@@ -65,15 +65,6 @@ export default async function handler(req, res) {
       }
     }
 
-    // Set headers for CSV download
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="won-leads.csv"');
-
-    if (allWonLeads.length === 0) {
-      res.status(200).send('email\n');
-      return;
-    }
-
     // Extract unique email addresses
     const emails = new Set();
     for (const lead of allWonLeads) {
@@ -86,11 +77,13 @@ export default async function handler(req, res) {
       }
     }
 
-    // Create simple CSV with just emails (one per line)
+    // Create simple line-delimited list (one email per line, no quotes, no header)
     const emailList = Array.from(emails).sort();
-    const csv = 'email\n' + emailList.map(email => `"${email.replace(/"/g, '""')}"`).join('\n') + '\n';
+    const output = emailList.join('\n') + (emailList.length > 0 ? '\n' : '');
 
-    res.status(200).send(csv);
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', 'attachment; filename="won-leads.txt"');
+    res.status(200).send(output);
   } catch (error) {
     console.error('Export error:', error);
     res.status(500).json({ error: String(error?.message || error) });
