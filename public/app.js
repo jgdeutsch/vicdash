@@ -300,6 +300,57 @@ function openSettings() {
 
 document.getElementById('settings').addEventListener('click', openSettings);
 
+// Export Won Leads functionality
+document.getElementById('export-won-leads').addEventListener('click', async () => {
+  const exportBtn = document.getElementById('export-won-leads');
+  const original = exportBtn.textContent;
+  exportBtn.disabled = true;
+  exportBtn.textContent = 'Exporting...';
+  
+  try {
+    // Get campaign IDs override if present
+    let idsQuery = '';
+    try {
+      const override = (localStorage.getItem('campaignIdsOverride') || '').trim();
+      if (override) idsQuery = `?ids=${encodeURIComponent(override)}`;
+    } catch {}
+    
+    const res = await fetch('/api/export-won-leads' + idsQuery, {
+      method: 'GET',
+    });
+    
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      throw new Error(errorData.error || `HTTP ${res.status}`);
+    }
+    
+    // Get the CSV content
+    const csv = await res.text();
+    
+    // Create a blob and download
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'won-leads.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    // Show success message briefly
+    exportBtn.textContent = '✓ Exported!';
+    setTimeout(() => {
+      exportBtn.textContent = original;
+    }, 2000);
+  } catch (error) {
+    alert(`Export failed: ${error.message}`);
+    exportBtn.textContent = original;
+  } finally {
+    exportBtn.disabled = false;
+  }
+});
+
 render().catch(err => console.error(err));
 
 // Sorting interactions
