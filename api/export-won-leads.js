@@ -70,65 +70,27 @@ export default async function handler(req, res) {
     res.setHeader('Content-Disposition', 'attachment; filename="won-leads.csv"');
 
     if (allWonLeads.length === 0) {
-      res.status(200).send('No won leads found\n');
+      res.status(200).send('email\n');
       return;
     }
 
-    // Extract all unique field names from leads
-    const allFields = new Set();
-    allWonLeads.forEach(lead => {
-      Object.keys(lead).forEach(key => allFields.add(key));
-      // Also check nested objects
-      if (lead.lead) Object.keys(lead.lead).forEach(key => allFields.add(`lead.${key}`));
-      if (lead.recipient) Object.keys(lead.recipient).forEach(key => allFields.add(`recipient.${key}`));
-    });
+    // Extract unique email addresses
+    const emails = new Set();
+    for (const lead of allWonLeads) {
+      const email = lead?.recipient?.emailAddress || 
+                    lead?.lead?.emailAddress || 
+                    lead?.emailAddress || 
+                    null;
+      if (email && typeof email === 'string') {
+        emails.add(email.toLowerCase().trim());
+      }
+    }
 
-    // Define important columns to show first
-    const priorityFields = [
-      'campaignId',
-      'lead.emailAddress',
-      'lead.firstName',
-      'lead.lastName',
-      'lead.company',
-      'lead.title',
-      'lead.phoneNumber',
-      'status',
-      'createdDate',
-      'closedDate',
-      'id',
-      'lead.id'
-    ];
+    // Create simple CSV with just emails (one per line)
+    const emailList = Array.from(emails).sort();
+    const csv = 'email\n' + emailList.map(email => `"${email.replace(/"/g, '""')}"`).join('\n') + '\n';
 
-    // Sort fields: priority first, then others
-    const sortedFields = [
-      ...priorityFields.filter(f => allFields.has(f) || allFields.has(f.replace('.', ''))),
-      ...Array.from(allFields).filter(f => !priorityFields.includes(f) && !priorityFields.includes(f.replace('.', '')))
-    ];
-
-    // Create CSV header
-    const csvHeader = sortedFields.map(field => `"${field}"`).join(',') + '\n';
-
-    // Create CSV rows
-    const csvRows = allWonLeads.map(lead => {
-      return sortedFields.map(field => {
-        let value;
-        if (field.includes('.')) {
-          const [parent, child] = field.split('.');
-          value = lead[parent]?.[child] ?? lead[field] ?? '';
-        } else {
-          value = lead[field] ?? '';
-        }
-        
-        // Handle null/undefined
-        if (value === null || value === undefined) return '""';
-        
-        // Convert to string and escape quotes
-        const str = String(value);
-        return `"${str.replace(/"/g, '""')}"`;
-      }).join(',');
-    }).join('\n');
-
-    res.status(200).send(csvHeader + csvRows);
+    res.status(200).send(csv);
   } catch (error) {
     console.error('Export error:', error);
     res.status(500).json({ error: String(error?.message || error) });
