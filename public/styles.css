@@ -107,19 +107,5 @@ table.data tbody td { color: #202124; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-/* Klaviyo Checker */
-.klaviyo-checker { background: var(--md-sys-color-surface); border: 1px solid var(--md-sys-color-outline); border-radius: 12px; padding: 16px; }
-.klaviyo-form { display: flex; gap: 12px; margin-bottom: 16px; }
-.klaviyo-form input { flex: 1; padding: 10px 12px; background: var(--md-sys-color-surface); border: 1px solid var(--md-sys-color-outline); color: var(--text); border-radius: 8px; font-size: 14px; }
-.klaviyo-form button { padding: 10px 16px; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
-.klaviyo-form button:hover { filter: brightness(1.05); }
-.klaviyo-form button:disabled { opacity: 0.6; cursor: not-allowed; }
-.klaviyo-results { display: grid; gap: 12px; }
-.event-check { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--md-sys-color-surface-variant); border-radius: 8px; }
-.event-label { color: var(--md-sys-color-on-surface); font-weight: 500; }
-.check-result { font-size: 20px; font-weight: 700; }
-.check-result.true { color: var(--chip-green-fg); }
-.check-result.false { color: var(--chip-pink-fg); }
-.klaviyo-error { padding: 12px; background: var(--chip-pink-bg); color: var(--chip-pink-fg); border-radius: 8px; margin-top: 12px; }
 
 
