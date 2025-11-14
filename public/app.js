@@ -189,72 +189,78 @@ async function render(providedData) {
   }
 }
 
-document.getElementById('refresh').addEventListener('click', async () => {
-  const btn = document.getElementById('refresh');
-  const original = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Refreshing…';
-  let usedFinal = false;
-  try {
-    const logEl = document.getElementById('log');
-    logEl.textContent = '';
-    logEl.textContent += 'Connecting to refresh stream...\n';
-    let lineCount = 0;
-    let finalData = null;
-    // Use persisted campaign ID override if present
-    let idsQuery = '';
+function setupRefreshButton(buttonId, endpoint, buttonLabel) {
+  document.getElementById(buttonId).addEventListener('click', async () => {
+    const btn = document.getElementById(buttonId);
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Refreshing…';
+    let usedFinal = false;
     try {
-      const override = (localStorage.getItem('campaignIdsOverride') || '').trim();
-      if (override) idsQuery = `?ids=${encodeURIComponent(override)}`;
-    } catch {}
-    const es = new EventSource('/api/refresh-stream' + idsQuery);
-    await new Promise((resolve) => {
-      es.onmessage = (ev) => {
-        try {
-          const { msg } = JSON.parse(ev.data);
-          if (msg === 'done') { es.close(); resolve(); return; }
-          logEl.textContent += msg + '\n';
-          logEl.scrollTop = logEl.scrollHeight;
-          lineCount++;
-        } catch {
-          logEl.textContent += ev.data + '\n';
-          lineCount++;
-        }
-      };
-      es.addEventListener('final', (ev) => {
-        try { finalData = JSON.parse(ev.data); } catch {}
+      const logEl = document.getElementById('log');
+      logEl.textContent = '';
+      logEl.textContent += `Connecting to ${buttonLabel} refresh stream...\n`;
+      let lineCount = 0;
+      let finalData = null;
+      // Use persisted campaign ID override if present
+      let idsQuery = '';
+      try {
+        const override = (localStorage.getItem('campaignIdsOverride') || '').trim();
+        if (override) idsQuery = `?ids=${encodeURIComponent(override)}`;
+      } catch {}
+      const es = new EventSource(endpoint + idsQuery);
+      await new Promise((resolve) => {
+        es.onmessage = (ev) => {
+          try {
+            const { msg } = JSON.parse(ev.data);
+            if (msg === 'done') { es.close(); resolve(); return; }
+            logEl.textContent += msg + '\n';
+            logEl.scrollTop = logEl.scrollHeight;
+            lineCount++;
+          } catch {
+            logEl.textContent += ev.data + '\n';
+            lineCount++;
+          }
+        };
+        es.addEventListener('final', (ev) => {
+          try { finalData = JSON.parse(ev.data); } catch {}
+        });
+        es.onerror = () => { es.close(); resolve(); };
       });
-      es.onerror = () => { es.close(); resolve(); };
-    });
 
-    // Fallback if no stream lines were received
-    if (lineCount === 0) {
-      logEl.textContent += 'Stream not available, falling back to one-shot refresh...\n';
-      const res = await fetch('/api/refresh' + idsQuery, { method: 'POST' });
-      if (!res.ok) {
-        const text = await res.text();
-        alert('Refresh failed: ' + text);
-      } else {
-        logEl.textContent += 'Refresh completed.\n';
+      // Fallback if no stream lines were received
+      if (lineCount === 0) {
+        logEl.textContent += 'Stream not available, falling back to one-shot refresh...\n';
+        // For new endpoints, they are already GET endpoints, so just retry
+        const res = await fetch(endpoint + idsQuery);
+        if (!res.ok) {
+          const text = await res.text();
+          alert('Refresh failed: ' + text);
+        } else {
+          logEl.textContent += 'Refresh completed.\n';
+        }
       }
-    }
-    if (finalData) {
-      usedFinal = true;
-      await render(finalData).catch(err => console.error(err));
+      if (finalData) {
+        usedFinal = true;
+        await render(finalData).catch(err => console.error(err));
+        btn.textContent = original;
+        btn.disabled = false;
+        return;
+      }
+    } catch (e) {
+      alert('Refresh error: ' + e);
+    } finally {
+      if (!usedFinal) {
+        await render().catch(err => console.error(err));
+      }
       btn.textContent = original;
       btn.disabled = false;
-      return;
     }
-  } catch (e) {
-    alert('Refresh error: ' + e);
-  } finally {
-    if (!usedFinal) {
-      await render().catch(err => console.error(err));
-    }
-    btn.textContent = original;
-    btn.disabled = false;
-  }
-});
+  });
+}
+
+setupRefreshButton('refresh-sends-opens', '/api/refresh-sends-opens', 'sends/opens');
+setupRefreshButton('refresh-leads', '/api/refresh-leads', 'leads');
 
 // Settings modal
 function openSettings() {
@@ -280,8 +286,7 @@ function openSettings() {
         return;
       }
       close();
-      // Immediately refresh after saving
-      document.getElementById('refresh').click();
+      // Note: User can manually refresh after saving settings
     } catch (e) {
       alert('Save error: ' + e);
     }

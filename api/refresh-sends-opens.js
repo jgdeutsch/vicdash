@@ -1,5 +1,5 @@
 import { collectAllCampaigns } from '../lib/mailshake.js';
-import { setCachedStats } from '../lib/cache.js';
+import { getCachedStats, setCachedStats } from '../lib/cache.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') { res.status(405).end(); return; }
@@ -16,14 +16,44 @@ export default async function handler(req, res) {
   };
 
   try {
-    send('Starting refresh');
+    send('Starting refresh: sends and opens');
     const idsParam = (req.query?.ids || '').toString();
     const ids = idsParam ? idsParam.split(/[ ,]+/).map(n => Number(n)).filter(Boolean) : undefined;
-    const data = await collectAllCampaigns(send, ids, { includeSendsOpens: true, includeLeads: true });
-    await setCachedStats(data);
-    // Emit final payload so clients don't need to re-fetch from a different instance
+    
+    // Get existing cached data to preserve leads data
+    const cached = await getCachedStats().catch(() => ({ campaigns: {} }));
+    const existingCampaigns = cached.campaigns || {};
+    
+    // Collect only sends/opens
+    const newData = await collectAllCampaigns(send, ids, { includeSendsOpens: true, includeLeads: false });
+    
+    // Merge: use new sends/opens data, preserve existing leads data
+    const mergedCampaigns = {};
+    for (const [id, newCampaign] of Object.entries(newData.campaigns)) {
+      const existing = existingCampaigns[id] || {};
+      mergedCampaigns[id] = {
+        title: newCampaign.title,
+        sender: newCampaign.sender,
+        stats: {
+          ...newCampaign.stats,
+          leads: existing.stats?.leads || { won: 0, lost: 0, open: 0 }
+        }
+      };
+    }
+    
+    // Preserve campaigns that exist in cache but weren't refreshed
+    for (const [id, existing] of Object.entries(existingCampaigns)) {
+      if (!mergedCampaigns[id]) {
+        mergedCampaigns[id] = existing;
+      }
+    }
+    
+    const finalData = { campaigns: mergedCampaigns, lastUpdated: newData.lastUpdated };
+    await setCachedStats(finalData);
+    
+    // Emit final payload
     res.write(`event: final\n`);
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    res.write(`data: ${JSON.stringify(finalData)}\n\n`);
     send('done');
   } catch (e) {
     send(`error: ${String(e && e.message || e)}`);
@@ -43,5 +73,4 @@ function checkAuth(req, res) {
   if (!ok) { res.setHeader('WWW-Authenticate', 'Basic realm="VicDash"'); res.status(401).end('Auth required'); }
   return ok;
 }
-
 

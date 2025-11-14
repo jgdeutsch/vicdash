@@ -176,36 +176,53 @@ function coalesceEmail(item) {
   );
 }
 
-async function collectCampaignStats(campaignId, log) {
-  // Sent events count
-  if (log) log(`Campaign ${campaignId}: fetching sends`);
-  const sent = await fetchPaginated('activity/sent', { campaignID: String(campaignId) }, log);
-  const sends = sent.length;
+async function discoverCampaigns(searchTerm, log) {
+  if (log) log(`Discovering campaigns with search term: "${searchTerm}"`);
+  const results = await fetchPaginated('campaigns/list', { search: searchTerm }, log);
+  const campaignIds = results.map(c => Number(c.id)).filter(Boolean);
+  if (log) log(`Found ${campaignIds.length} campaigns matching "${searchTerm}"`);
+  return campaignIds;
+}
 
-  // Unique opens by recipient email (fallback to id string if email missing)
-  if (log) log(`Campaign ${campaignId}: fetching opens`);
-  const opens = await fetchPaginated('activity/opens', { campaignID: String(campaignId) }, log);
-  const unique = new Set();
-  for (const ev of opens) {
-    const email = coalesceEmail(ev);
-    if (email) unique.add(email.toLowerCase());
-    else {
-      const id = ev?.recipient?.id || ev?.lead?.id || ev?.recipientID || ev?.leadID || ev?.id;
-      if (id) unique.add(`id:${String(id)}`);
+async function collectCampaignStats(campaignId, log, options = {}) {
+  const { includeSendsOpens = true, includeLeads = true } = options;
+  
+  let sends = 0, uniqueOpens = 0, replies = 0;
+  let won = 0, lost = 0, openLeads = 0;
+
+  if (includeSendsOpens) {
+    // Sent events count
+    if (log) log(`Campaign ${campaignId}: fetching sends`);
+    const sent = await fetchPaginated('activity/sent', { campaignID: String(campaignId) }, log);
+    sends = sent.length;
+
+    // Unique opens by recipient email (fallback to id string if email missing)
+    if (log) log(`Campaign ${campaignId}: fetching opens`);
+    const opens = await fetchPaginated('activity/opens', { campaignID: String(campaignId) }, log);
+    const unique = new Set();
+    for (const ev of opens) {
+      const email = coalesceEmail(ev);
+      if (email) unique.add(email.toLowerCase());
+      else {
+        const id = ev?.recipient?.id || ev?.lead?.id || ev?.recipientID || ev?.leadID || ev?.id;
+        if (id) unique.add(`id:${String(id)}`);
+      }
     }
+    uniqueOpens = unique.size;
+
+    // Replies count (events)
+    if (log) log(`Campaign ${campaignId}: fetching replies`);
+    const repliesArr = await fetchPaginated('activity/replies', { campaignID: String(campaignId), replyType: 'reply' }, log);
+    replies = repliesArr.length;
   }
-  const uniqueOpens = unique.size;
 
-  // Replies count (events)
-  if (log) log(`Campaign ${campaignId}: fetching replies`);
-  const repliesArr = await fetchPaginated('activity/replies', { campaignID: String(campaignId), replyType: 'reply' }, log);
-  const replies = repliesArr.length;
-
-  // Leads
-  if (log) log(`Campaign ${campaignId}: fetching leads (closed/lost/open)`);
-  const won = (await fetchPaginated('leads/list', { campaignID: String(campaignId), status: 'closed' }, log)).length;
-  const lost = (await fetchPaginated('leads/list', { campaignID: String(campaignId), status: 'lost' }, log)).length;
-  const openLeads = (await fetchPaginated('leads/list', { campaignID: String(campaignId), status: 'open' }, log)).length;
+  if (includeLeads) {
+    // Leads
+    if (log) log(`Campaign ${campaignId}: fetching leads (closed/lost/open)`);
+    won = (await fetchPaginated('leads/list', { campaignID: String(campaignId), status: 'closed' }, log)).length;
+    lost = (await fetchPaginated('leads/list', { campaignID: String(campaignId), status: 'lost' }, log)).length;
+    openLeads = (await fetchPaginated('leads/list', { campaignID: String(campaignId), status: 'open' }, log)).length;
+  }
 
   const info = await getCampaignInfo(campaignId, log);
 
@@ -222,11 +239,20 @@ async function collectCampaignStats(campaignId, log) {
   };
 }
 
-async function refreshStats(log) {
+async function refreshStats(log, options = {}) {
+  // Discover campaigns with [VB] in title
+  let ids;
+  if (log) log(`Discovering campaigns with "[VB]" in title...`);
+  ids = await discoverCampaigns('[VB]', log);
+  if (ids.length === 0) {
+    if (log) log('No campaigns found with "[VB]" in title, using fallback from config');
+    ids = CAMPAIGN_IDS;
+  }
+  
   const campaigns = {};
-  for (const id of CAMPAIGN_IDS) {
+  for (const id of ids) {
     if (log) log(`Processing campaign ${id}`);
-    const c = await collectCampaignStats(id, log);
+    const c = await collectCampaignStats(id, log, options);
     campaigns[c.id] = { title: c.title, sender: c.sender, stats: c.stats };
   }
   const data = { campaigns, lastUpdated: new Date().toISOString().replace(/\..+/, 'Z') };
@@ -290,7 +316,7 @@ const server = http.createServer(async (req, res) => {
 
   if (method === 'POST' && reqUrl === '/api/refresh') {
     try {
-      const data = await refreshStats();
+      const data = await refreshStats(null, { includeSendsOpens: true, includeLeads: true });
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify(data));
     } catch (e) {
@@ -312,7 +338,113 @@ const server = http.createServer(async (req, res) => {
     (async () => {
       try {
         send('Starting refresh');
-        const data = await refreshStats(send);
+        const data = await refreshStats(send, { includeSendsOpens: true, includeLeads: true });
+        send('done');
+      } catch (e) {
+        send(`error: ${String(e && e.message || e)}`);
+      } finally {
+        res.end();
+      }
+    })();
+    return;
+  }
+
+  if (method === 'GET' && reqUrl === '/api/refresh-sends-opens') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive'
+    });
+    const send = (msg) => {
+      res.write(`data: ${JSON.stringify({ t: Date.now(), msg })}\n\n`);
+    };
+    (async () => {
+      try {
+        send('Starting refresh: sends and opens');
+        // Read existing stats to preserve leads
+        let existingData = { campaigns: {} };
+        try {
+          const raw = await fs.readFile(STATS_FILE, 'utf8');
+          existingData = JSON.parse(raw);
+        } catch {}
+        
+        const newData = await refreshStats(send, { includeSendsOpens: true, includeLeads: false });
+        
+        // Merge: use new sends/opens, preserve existing leads
+        const mergedCampaigns = {};
+        for (const [id, newCampaign] of Object.entries(newData.campaigns)) {
+          const existing = existingData.campaigns[id] || {};
+          mergedCampaigns[id] = {
+            title: newCampaign.title,
+            sender: newCampaign.sender,
+            stats: {
+              ...newCampaign.stats,
+              leads: existing.stats?.leads || { won: 0, lost: 0, open: 0 }
+            }
+          };
+        }
+        for (const [id, existing] of Object.entries(existingData.campaigns)) {
+          if (!mergedCampaigns[id]) mergedCampaigns[id] = existing;
+        }
+        
+        const finalData = { campaigns: mergedCampaigns, lastUpdated: newData.lastUpdated };
+        await fs.writeFile(STATS_FILE, JSON.stringify(finalData, null, 2));
+        res.write(`event: final\n`);
+        res.write(`data: ${JSON.stringify(finalData)}\n\n`);
+        send('done');
+      } catch (e) {
+        send(`error: ${String(e && e.message || e)}`);
+      } finally {
+        res.end();
+      }
+    })();
+    return;
+  }
+
+  if (method === 'GET' && reqUrl === '/api/refresh-leads') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive'
+    });
+    const send = (msg) => {
+      res.write(`data: ${JSON.stringify({ t: Date.now(), msg })}\n\n`);
+    };
+    (async () => {
+      try {
+        send('Starting refresh: leads and lead status');
+        // Read existing stats to preserve sends/opens
+        let existingData = { campaigns: {} };
+        try {
+          const raw = await fs.readFile(STATS_FILE, 'utf8');
+          existingData = JSON.parse(raw);
+        } catch {}
+        
+        const newData = await refreshStats(send, { includeSendsOpens: false, includeLeads: true });
+        
+        // Merge: use new leads, preserve existing sends/opens
+        const mergedCampaigns = {};
+        for (const [id, newCampaign] of Object.entries(newData.campaigns)) {
+          const existing = existingData.campaigns[id] || {};
+          mergedCampaigns[id] = {
+            title: newCampaign.title,
+            sender: newCampaign.sender,
+            stats: {
+              sends: existing.stats?.sends || 0,
+              uniqueOpens: existing.stats?.uniqueOpens || existing.stats?.opens || 0,
+              replies: existing.stats?.replies || 0,
+              leads: newCampaign.stats.leads
+            }
+          };
+        }
+        for (const [id, existing] of Object.entries(existingData.campaigns)) {
+          if (!mergedCampaigns[id]) mergedCampaigns[id] = existing;
+        }
+        
+        const finalData = { campaigns: mergedCampaigns, lastUpdated: newData.lastUpdated };
+        await fs.writeFile(STATS_FILE, JSON.stringify(finalData, null, 2));
+        res.write(`event: final\n`);
+        res.write(`data: ${JSON.stringify(finalData)}\n\n`);
         send('done');
       } catch (e) {
         send(`error: ${String(e && e.message || e)}`);
