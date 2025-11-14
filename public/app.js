@@ -190,8 +190,12 @@ async function render(providedData) {
 }
 
 function setupRefreshButton(buttonId, endpoint, buttonLabel) {
-  document.getElementById(buttonId).addEventListener('click', async () => {
-    const btn = document.getElementById(buttonId);
+  const btn = document.getElementById(buttonId);
+  if (!btn) {
+    console.error(`Button with id "${buttonId}" not found`);
+    return;
+  }
+  btn.addEventListener('click', async () => {
     const original = btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Refreshing…';
@@ -202,13 +206,7 @@ function setupRefreshButton(buttonId, endpoint, buttonLabel) {
       logEl.textContent += `Connecting to ${buttonLabel} refresh stream...\n`;
       let lineCount = 0;
       let finalData = null;
-      // Use persisted campaign ID override if present
-      let idsQuery = '';
-      try {
-        const override = (localStorage.getItem('campaignIdsOverride') || '').trim();
-        if (override) idsQuery = `?ids=${encodeURIComponent(override)}`;
-      } catch {}
-      const es = new EventSource(endpoint + idsQuery);
+      const es = new EventSource(endpoint);
       await new Promise((resolve) => {
         es.onmessage = (ev) => {
           try {
@@ -231,8 +229,7 @@ function setupRefreshButton(buttonId, endpoint, buttonLabel) {
       // Fallback if no stream lines were received
       if (lineCount === 0) {
         logEl.textContent += 'Stream not available, falling back to one-shot refresh...\n';
-        // For new endpoints, they are already GET endpoints, so just retry
-        const res = await fetch(endpoint + idsQuery);
+        const res = await fetch(endpoint);
         if (!res.ok) {
           const text = await res.text();
           alert('Refresh failed: ' + text);
@@ -259,51 +256,6 @@ function setupRefreshButton(buttonId, endpoint, buttonLabel) {
   });
 }
 
-setupRefreshButton('refresh-sends-opens', '/api/refresh-sends-opens', 'sends/opens');
-setupRefreshButton('refresh-leads', '/api/refresh-leads', 'leads');
-
-// Settings modal
-function openSettings() {
-  const tpl = document.getElementById('settings-template');
-  const node = tpl.content.cloneNode(true);
-  const modal = node.querySelector('.modal');
-  document.body.appendChild(node);
-
-  const close = () => document.querySelector('.modal')?.remove();
-  document.getElementById('closeSettings').addEventListener('click', close);
-  document.getElementById('saveSettings').addEventListener('click', async () => {
-    const campaignIds = document.getElementById('campaignIdsInput').value.trim();
-    try {
-      try { localStorage.setItem('campaignIdsOverride', campaignIds); } catch {}
-      const res = await fetch('/api/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignIds })
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        alert(`Failed to save settings (status ${res.status}):\n${text}`);
-        return;
-      }
-      close();
-      // Note: User can manually refresh after saving settings
-    } catch (e) {
-      alert('Save error: ' + e);
-    }
-  });
-
-  // Prefill from server
-  fetch('/api/config-info').then(r => r.ok ? r.json() : null).then(info => {
-    let value = '';
-    try { value = (localStorage.getItem('campaignIdsOverride') || '').trim(); } catch {}
-    if (!value && info && Array.isArray(info.campaignIds)) {
-      value = info.campaignIds.join(' ');
-    }
-    if (value) document.getElementById('campaignIdsInput').value = value;
-  }).catch(() => {});
-}
-
-document.getElementById('settings').addEventListener('click', openSettings);
 
 // Export Won Leads functionality
 document.getElementById('export-won-leads').addEventListener('click', async () => {
@@ -313,14 +265,7 @@ document.getElementById('export-won-leads').addEventListener('click', async () =
   exportBtn.textContent = 'Exporting...';
   
   try {
-    // Get campaign IDs override if present
-    let idsQuery = '';
-    try {
-      const override = (localStorage.getItem('campaignIdsOverride') || '').trim();
-      if (override) idsQuery = `?ids=${encodeURIComponent(override)}`;
-    } catch {}
-    
-    const res = await fetch('/api/export-won-leads' + idsQuery, {
+    const res = await fetch('/api/export-won-leads', {
       method: 'GET',
     });
     
@@ -382,6 +327,10 @@ document.querySelectorAll('th.sortable').forEach(th => {
     render().then(applySortIndicators);
   });
 });
+
+// Setup refresh buttons
+setupRefreshButton('refresh-sends-opens', '/api/refresh-sends-opens', 'sends/opens');
+setupRefreshButton('refresh-leads', '/api/refresh-leads', 'leads');
 
 
 

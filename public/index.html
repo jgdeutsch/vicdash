@@ -13,7 +13,6 @@
   <header class="topbar elevation-2">
     <div class="brand">VicDash</div>
     <div class="controls">
-      <button id="settings" class="secondary">Settings</button>
       <button id="export-won-leads" class="secondary">Export Won Leads</button>
       <button id="refresh-sends-opens">Refresh Sends/Opens</button>
       <button id="refresh-leads">Refresh Leads</button>
@@ -58,20 +57,6 @@
   </footer>
 
   <script src="/app.js" type="module"></script>
-  <template id="settings-template">
-    <div class="modal">
-      <div class="modal-card">
-        <div class="modal-header">Settings</div>
-        <div class="modal-body">
-          <label>Campaign IDs (space-separated) <input id="campaignIdsInput" type="text" placeholder="1472607 1472605 ..." /></label>
-        </div>
-        <div class="modal-actions">
-          <button id="saveSettings">Save</button>
-          <button id="closeSettings" class="secondary">Close</button>
-        </div>
-      </div>
-    </div>
-  </template>
   <noscript>Please enable JavaScript to view this dashboard.</noscript>
 </body>
 
