@@ -337,6 +337,51 @@ document.querySelectorAll('th.sortable').forEach(th => {
 setupRefreshButton('refresh-sends-opens', '/api/refresh-sends-opens', 'sends/opens');
 setupRefreshButton('refresh-leads', '/api/refresh-leads', 'leads');
 
+// Reset refresh window button
+document.getElementById('reset-refresh-window').addEventListener('click', async () => {
+  const btn = document.getElementById('reset-refresh-window');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Resetting...';
+  
+  const logEl = document.getElementById('log');
+  const formatTimestamp = () => {
+    const date = new Date();
+    return date.toISOString().replace('T', ' ').substring(0, 19);
+  };
+  
+  try {
+    logEl.textContent += `[${formatTimestamp()}] Resetting 12-hour refresh window...\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+    
+    const res = await fetch('/api/reset-refresh-timestamps', {
+      method: 'POST',
+      credentials: 'include'
+    });
+    
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      throw new Error(errorData.error || `HTTP ${res.status}`);
+    }
+    
+    const data = await res.json();
+    logEl.textContent += `[${formatTimestamp()}] ✓ ${data.message || 'Refresh window reset successfully'}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+    
+    btn.textContent = '✓ Reset!';
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.disabled = false;
+    }, 2000);
+  } catch (error) {
+    logEl.textContent += `[${formatTimestamp()}] ✗ Error: ${error.message}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+    alert(`Reset failed: ${error.message}`);
+    btn.textContent = original;
+    btn.disabled = false;
+  }
+});
+
 // Fetch and display version
 (async () => {
   try {
