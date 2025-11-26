@@ -1,6 +1,6 @@
 {
   "name": "vicdash",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "VicDash - Mailshake campaign reporting dashboard",
   "main": "server.js",

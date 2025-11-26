@@ -288,6 +288,18 @@ const server = http.createServer(async (req, res) => {
     return void serveStats(req, res);
   }
 
+  if (method === 'GET' && reqUrl === '/api/version') {
+    try {
+      const packageJson = JSON.parse(fsSync.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ version: packageJson.version }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to read version', version: 'unknown' }));
+    }
+    return;
+  }
+
   if (method === 'POST' && reqUrl === '/api/config') {
     let body = '';
     req.on('data', chunk => { body += chunk; if (body.length > 1e6) req.destroy(); });

@@ -332,5 +332,18 @@ document.querySelectorAll('th.sortable').forEach(th => {
 setupRefreshButton('refresh-sends-opens', '/api/refresh-sends-opens', 'sends/opens');
 setupRefreshButton('refresh-leads', '/api/refresh-leads', 'leads');
 
-
+// Fetch and display version
+(async () => {
+  try {
+    const res = await fetch('/api/version', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      const versionEl = document.getElementById('version-number');
+      if (versionEl) versionEl.textContent = data.version || 'unknown';
+    }
+  } catch (e) {
+    const versionEl = document.getElementById('version-number');
+    if (versionEl) versionEl.textContent = 'unknown';
+  }
+})();
 
