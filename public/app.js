@@ -201,9 +201,14 @@ function setupRefreshButton(buttonId, endpoint, buttonLabel) {
     btn.textContent = 'Refreshing…';
     let usedFinal = false;
     try {
+      const formatTimestamp = () => {
+        const date = new Date();
+        return date.toISOString().replace('T', ' ').substring(0, 19);
+      };
+
       const logEl = document.getElementById('log');
       logEl.textContent = '';
-      logEl.textContent += `Connecting to ${buttonLabel} refresh stream...\n`;
+      logEl.textContent += `[${formatTimestamp()}] Connecting to ${buttonLabel} refresh stream...\n`;
       let lineCount = 0;
       let finalData = null;
       const es = new EventSource(endpoint);
@@ -228,13 +233,13 @@ function setupRefreshButton(buttonId, endpoint, buttonLabel) {
 
       // Fallback if no stream lines were received
       if (lineCount === 0) {
-        logEl.textContent += 'Stream not available, falling back to one-shot refresh...\n';
+        logEl.textContent += `[${formatTimestamp()}] Stream not available, falling back to one-shot refresh...\n`;
         const res = await fetch(endpoint);
         if (!res.ok) {
           const text = await res.text();
           alert('Refresh failed: ' + text);
         } else {
-          logEl.textContent += 'Refresh completed.\n';
+          logEl.textContent += `[${formatTimestamp()}] Refresh completed.\n`;
         }
       }
       if (finalData) {

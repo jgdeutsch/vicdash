@@ -11,8 +11,14 @@ export default async function handler(req, res) {
     'Connection': 'keep-alive'
   });
 
+  const formatTimestamp = (date = new Date()) => {
+    return date.toISOString().replace('T', ' ').substring(0, 19);
+  };
+
   const send = (msg) => {
-    res.write(`data: ${JSON.stringify({ t: Date.now(), msg })}\n\n`);
+    // If message doesn't already have a timestamp, add one
+    const timestampedMsg = msg.startsWith('[') ? msg : `[${formatTimestamp()}] ${msg}`;
+    res.write(`data: ${JSON.stringify({ t: Date.now(), msg: timestampedMsg })}\n\n`);
   };
 
   try {
