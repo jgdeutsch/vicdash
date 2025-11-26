@@ -1,5 +1,5 @@
 import { collectAllCampaigns } from '../lib/mailshake.js';
-import { setCachedStats } from '../lib/cache.js';
+import { getCachedStats, setCachedStats } from '../lib/cache.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') { res.status(405).end(); return; }
@@ -25,11 +25,27 @@ export default async function handler(req, res) {
     send('Starting refresh');
     const idsParam = (req.query?.ids || '').toString();
     const ids = idsParam ? idsParam.split(/[ ,]+/).map(n => Number(n)).filter(Boolean) : undefined;
-    const data = await collectAllCampaigns(send, ids, { includeSendsOpens: true, includeLeads: true });
-    await setCachedStats(data);
+    
+    // Get existing cached data to preserve skipped campaigns
+    const cached = await getCachedStats().catch(() => ({ campaigns: {} }));
+    const existingCampaigns = cached.campaigns || {};
+    
+    const newData = await collectAllCampaigns(send, ids, { includeSendsOpens: true, includeLeads: true });
+    
+    // Merge: use new data, preserve campaigns that were skipped (exist in cache but not in new data)
+    const mergedCampaigns = { ...newData.campaigns };
+    for (const [id, existing] of Object.entries(existingCampaigns)) {
+      if (!mergedCampaigns[id]) {
+        mergedCampaigns[id] = existing;
+      }
+    }
+    
+    const finalData = { campaigns: mergedCampaigns, lastUpdated: newData.lastUpdated };
+    await setCachedStats(finalData);
+    
     // Emit final payload so clients don't need to re-fetch from a different instance
     res.write(`event: final\n`);
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    res.write(`data: ${JSON.stringify(finalData)}\n\n`);
     send('done');
   } catch (e) {
     send(`error: ${String(e && e.message || e)}`);
