@@ -1,5 +1,5 @@
 import { collectAllCampaigns } from '../lib/mailshake.js';
-import { getCachedStats } from '../lib/cache.js';
+import { getCachedStats, getCampaignRefreshTimestamps } from '../lib/cache.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') { res.status(405).end(); return; }
@@ -14,8 +14,26 @@ export default async function handler(req, res) {
       console.log('No cache found, computing on-demand');
       cached = await collectAllCampaigns();
     }
+    
+    // Get last update timestamps for each campaign
+    const refreshTimestamps = await getCampaignRefreshTimestamps();
+    
+    // Add lastUpdate timestamp to each campaign
+    const campaignsWithTimestamps = {};
+    for (const [id, campaign] of Object.entries(cached?.campaigns || {})) {
+      campaignsWithTimestamps[id] = {
+        ...campaign,
+        lastUpdate: refreshTimestamps[id] ? refreshTimestamps[id].toISOString() : null
+      };
+    }
+    
+    const response = {
+      campaigns: campaignsWithTimestamps,
+      lastUpdated: cached?.lastUpdated || ''
+    };
+    
     res.setHeader('Cache-Control', 'no-store');
-    res.status(200).json(cached || { campaigns: {}, lastUpdated: '' });
+    res.status(200).json(response);
   } catch (e) {
     console.error('Stats error:', e);
     res.status(500).json({ error: String(e && e.message || e) });

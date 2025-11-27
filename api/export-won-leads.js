@@ -47,10 +47,11 @@ export default async function handler(req, res) {
     // Fetch won leads from all campaigns
     for (const campaignId of ids) {
       try {
-        const wonLeads = await fetchPaginated('leads/list', {
+        const wonLeadsData = await fetchPaginated('leads/list', {
           campaignID: String(campaignId),
           status: 'closed'
         }, apiKey);
+        const wonLeads = wonLeadsData.results;
         
         // Add campaign ID to each lead for reference
         for (const lead of wonLeads) {

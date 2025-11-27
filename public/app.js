@@ -64,6 +64,16 @@ function classifyWinRate(winRate) {
   return 'bad';
 }
 
+function daysSinceUpdate(lastUpdate) {
+  if (!lastUpdate) return null;
+  const lastUpdateDate = new Date(lastUpdate);
+  if (isNaN(lastUpdateDate.getTime())) return null;
+  const now = new Date();
+  const diffMs = now.getTime() - lastUpdateDate.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  return diffDays;
+}
+
 function renderTable(tbody, data) {
   const entries = Object.entries(data.campaigns || {});
   try { console.debug('renderTable entries:', entries); } catch {}
@@ -80,13 +90,15 @@ function renderTable(tbody, data) {
     const openRate = sends ? opens / sends : 0;
     const replyRate = sends ? replies / sends : 0;
     const winRate = sends ? leadsWon / sends : 0;
-    return { id, c, sends, opens, replies, leadsOpen, leadsWon, leadsLost, openRate, replyRate, winRate };
+    const lastUpdateDays = daysSinceUpdate(c.lastUpdate);
+    return { id, c, sends, opens, replies, leadsOpen, leadsWon, leadsLost, openRate, replyRate, winRate, lastUpdateDays };
   });
 
   enriched.sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1;
     const get = (r) => {
       switch (sortKey) {
+        case 'lastUpdate': return r.lastUpdateDays !== null ? r.lastUpdateDays : Infinity;
         case 'campaign': return (r.c.title || '').toLowerCase();
         case 'sender': return (r.c.sender || '').toLowerCase();
         case 'sends': return r.sends;
@@ -113,7 +125,7 @@ function renderTable(tbody, data) {
   if (enriched.length === 0) {
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 11;
+    td.colSpan = 12;
     td.textContent = 'No campaigns to display';
     tr.appendChild(td);
     tbody.appendChild(tr);
@@ -121,9 +133,121 @@ function renderTable(tbody, data) {
   }
 
   for (const r of enriched) {
-    const { id, c, sends, opens, replies, leadsOpen, leadsWon, leadsLost, openRate, replyRate, winRate } = r;
+    const { id, c, sends, opens, replies, leadsOpen, leadsWon, leadsLost, openRate, replyRate, winRate, lastUpdateDays } = r;
     const tr = document.createElement('tr');
 
+    // Last update column with update button
+    const tdLastUpdate = document.createElement('td');
+    const lastUpdateContainer = document.createElement('div');
+    lastUpdateContainer.style.display = 'flex';
+    lastUpdateContainer.style.alignItems = 'center';
+    lastUpdateContainer.style.gap = '8px';
+    lastUpdateContainer.style.flexDirection = 'column';
+    lastUpdateContainer.style.alignItems = 'flex-start';
+    
+    const lastUpdateText = document.createElement('span');
+    if (lastUpdateDays !== null) {
+      lastUpdateText.textContent = `${lastUpdateDays} day${lastUpdateDays !== 1 ? 's' : ''}`;
+      // Show completion status if available
+      if (c.statsComplete !== undefined) {
+        const completionIndicator = document.createElement('span');
+        completionIndicator.style.fontSize = '0.75rem';
+        completionIndicator.style.marginLeft = '4px';
+        if (c.statsComplete) {
+          completionIndicator.textContent = '✓';
+          completionIndicator.style.color = 'var(--md-sys-color-primary)';
+          completionIndicator.title = 'Stats fully updated (pagination complete)';
+        } else {
+          completionIndicator.textContent = '⚠';
+          completionIndicator.style.color = 'var(--md-sys-color-error)';
+          completionIndicator.title = 'Stats may be incomplete (pagination not verified)';
+        }
+        lastUpdateText.appendChild(completionIndicator);
+      }
+    } else {
+      lastUpdateText.textContent = 'Never';
+      lastUpdateText.style.color = 'var(--md-sys-color-on-surface-variant)';
+    }
+    lastUpdateContainer.appendChild(lastUpdateText);
+    
+    const updateBtn = document.createElement('button');
+    updateBtn.textContent = 'Update';
+    updateBtn.className = 'secondary';
+    updateBtn.style.fontSize = '0.75rem';
+    updateBtn.style.padding = '4px 8px';
+    updateBtn.style.cursor = 'pointer';
+    updateBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const originalText = updateBtn.textContent;
+      updateBtn.disabled = true;
+      updateBtn.textContent = 'Updating...';
+      
+      const logEl = document.getElementById('log');
+      const formatTimestamp = () => {
+        const date = new Date();
+        return date.toISOString().replace('T', ' ').substring(0, 19);
+      };
+      
+      try {
+        logEl.textContent += `[${formatTimestamp()}] Updating campaign ${id}...\n`;
+        logEl.scrollTop = logEl.scrollHeight;
+        
+        // Use EventSource for streaming updates
+        const es = new EventSource(`/api/refresh-campaign?campaignId=${id}`);
+        let finalData = null;
+        await new Promise((resolve) => {
+          es.onmessage = (ev) => {
+            try {
+              const { msg } = JSON.parse(ev.data);
+              if (msg === 'done') { es.close(); resolve(); return; }
+              logEl.textContent += msg + '\n';
+              logEl.scrollTop = logEl.scrollHeight;
+            } catch {
+              logEl.textContent += ev.data + '\n';
+            }
+          };
+          es.addEventListener('final', (ev) => {
+            try {
+              finalData = JSON.parse(ev.data);
+            } catch {}
+          });
+          es.onerror = () => { es.close(); resolve(); };
+        });
+        
+        if (finalData) {
+          await render(finalData).catch(err => console.error(err));
+        } else {
+          // Fallback: try POST request if EventSource doesn't work
+          const res = await fetch('/api/refresh-campaign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ campaignId: id })
+          });
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(text);
+          }
+          await render();
+        }
+        
+        updateBtn.textContent = '✓ Updated!';
+        setTimeout(() => {
+          updateBtn.textContent = originalText;
+          updateBtn.disabled = false;
+        }, 2000);
+      } catch (error) {
+        logEl.textContent += `[${formatTimestamp()}] ✗ Error: ${error.message}\n`;
+        logEl.scrollTop = logEl.scrollHeight;
+        alert(`Update failed: ${error.message}`);
+        updateBtn.textContent = originalText;
+        updateBtn.disabled = false;
+      }
+    });
+    lastUpdateContainer.appendChild(updateBtn);
+    tdLastUpdate.appendChild(lastUpdateContainer);
+    tr.appendChild(tdLastUpdate);
+
+    // Campaign title column
     const tdTitle = document.createElement('td');
     const a = document.createElement('a');
     a.href = `https://app.mailshake.com/${MAILSHAKE_TEAM_ID}/campaigns/all/${id}/prospects/list`;
