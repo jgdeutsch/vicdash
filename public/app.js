@@ -17,6 +17,146 @@ const MAILSHAKE_TEAM_ID = 6788;
 let sortKey = 'leadsOpen'; // default sort by open leads desc
 let sortDir = 'desc';
 
+// Campaign update queue system
+const updateQueue = [];
+let isProcessingQueue = false;
+const campaignUpdateStatus = new Map(); // campaignId -> 'queued' | 'processing' | 'completed' | 'error'
+const campaignUpdateButtons = new Map(); // campaignId -> button element
+
+// Process a single campaign update
+async function processCampaignUpdate(campaignId) {
+  const logEl = document.getElementById('log');
+  const formatTimestamp = () => {
+    const date = new Date();
+    return date.toISOString().replace('T', ' ').substring(0, 19);
+  };
+  
+  const button = campaignUpdateButtons.get(campaignId);
+  const originalText = button ? button.textContent : 'Update';
+  
+  try {
+    campaignUpdateStatus.set(campaignId, 'processing');
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Updating...';
+    }
+    
+    logEl.textContent += `[${formatTimestamp()}] Updating campaign ${campaignId}...\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+    
+    // Use EventSource for streaming updates
+    const es = new EventSource(`/api/refresh-campaign?campaignId=${campaignId}`);
+    let finalData = null;
+    await new Promise((resolve) => {
+      es.onmessage = (ev) => {
+        try {
+          const { msg } = JSON.parse(ev.data);
+          if (msg === 'done') { es.close(); resolve(); return; }
+          logEl.textContent += msg + '\n';
+          logEl.scrollTop = logEl.scrollHeight;
+        } catch {
+          logEl.textContent += ev.data + '\n';
+        }
+      };
+      es.addEventListener('final', (ev) => {
+        try {
+          finalData = JSON.parse(ev.data);
+        } catch {}
+      });
+      es.onerror = () => { es.close(); resolve(); };
+    });
+    
+    if (finalData) {
+      await render(finalData).catch(err => console.error(err));
+    } else {
+      // Fallback: try POST request if EventSource doesn't work
+      const res = await fetch('/api/refresh-campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignId })
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text);
+      }
+      await render();
+    }
+    
+    campaignUpdateStatus.set(campaignId, 'completed');
+    if (button) {
+      button.textContent = '✓ Updated!';
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.disabled = false;
+        campaignUpdateStatus.delete(campaignId);
+      }, 2000);
+    }
+  } catch (error) {
+    campaignUpdateStatus.set(campaignId, 'error');
+    logEl.textContent += `[${formatTimestamp()}] ✗ Error: ${error.message}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+    if (button) {
+      button.textContent = originalText;
+      button.disabled = false;
+    }
+    campaignUpdateStatus.delete(campaignId);
+    throw error;
+  }
+}
+
+// Update queue position displays
+function updateQueueDisplays() {
+  updateQueue.forEach((campaignId, index) => {
+    const button = campaignUpdateButtons.get(campaignId);
+    if (button && campaignUpdateStatus.get(campaignId) === 'queued') {
+      button.textContent = `Queued (${index + 1})`;
+    }
+  });
+}
+
+// Process the update queue
+async function processUpdateQueue() {
+  if (isProcessingQueue || updateQueue.length === 0) {
+    return;
+  }
+  
+  isProcessingQueue = true;
+  
+  while (updateQueue.length > 0) {
+    const campaignId = updateQueue.shift();
+    updateQueueDisplays(); // Update remaining queue positions
+    try {
+      await processCampaignUpdate(campaignId);
+    } catch (error) {
+      console.error(`Error processing campaign ${campaignId}:`, error);
+      // Continue with next item in queue
+    }
+  }
+  
+  isProcessingQueue = false;
+}
+
+// Add campaign to update queue
+function queueCampaignUpdate(campaignId) {
+  // Don't add if already queued or processing
+  if (campaignUpdateStatus.has(campaignId)) {
+    return;
+  }
+  
+  campaignUpdateStatus.set(campaignId, 'queued');
+  updateQueue.push(campaignId);
+  
+  const button = campaignUpdateButtons.get(campaignId);
+  if (button) {
+    const queuePosition = updateQueue.length;
+    button.textContent = `Queued (${queuePosition})`;
+    button.disabled = true;
+  }
+  
+  // Start processing if not already running
+  processUpdateQueue();
+}
+
 function computeAggregates(campaigns) {
   let sends = 0, opens = 0, replies = 0, leadsOpen = 0, leadsWon = 0, leadsLost = 0;
   Object.values(campaigns).forEach(c => {
@@ -78,6 +218,9 @@ function renderTable(tbody, data) {
   const entries = Object.entries(data.campaigns || {});
   try { console.debug('renderTable entries:', entries); } catch {}
   console.log('renderTable entries:', entries);
+  
+  // Clear button map to avoid stale references (will be repopulated below)
+  campaignUpdateButtons.clear();
 
   // Build comparable metrics per row for sorting
   const enriched = entries.map(([id, c]) => {
@@ -176,72 +319,28 @@ function renderTable(tbody, data) {
     updateBtn.style.fontSize = '0.75rem';
     updateBtn.style.padding = '4px 8px';
     updateBtn.style.cursor = 'pointer';
+    
+    // Store button reference for queue management
+    campaignUpdateButtons.set(id, updateBtn);
+    
+    // Update button state based on current status
+    const status = campaignUpdateStatus.get(id);
+    if (status === 'queued') {
+      const queueIndex = updateQueue.indexOf(id);
+      if (queueIndex >= 0) {
+        updateBtn.textContent = `Queued (${queueIndex + 1})`;
+      } else {
+        updateBtn.textContent = 'Queued';
+      }
+      updateBtn.disabled = true;
+    } else if (status === 'processing') {
+      updateBtn.textContent = 'Updating...';
+      updateBtn.disabled = true;
+    }
+    
     updateBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const originalText = updateBtn.textContent;
-      updateBtn.disabled = true;
-      updateBtn.textContent = 'Updating...';
-      
-      const logEl = document.getElementById('log');
-      const formatTimestamp = () => {
-        const date = new Date();
-        return date.toISOString().replace('T', ' ').substring(0, 19);
-      };
-      
-      try {
-        logEl.textContent += `[${formatTimestamp()}] Updating campaign ${id}...\n`;
-        logEl.scrollTop = logEl.scrollHeight;
-        
-        // Use EventSource for streaming updates
-        const es = new EventSource(`/api/refresh-campaign?campaignId=${id}`);
-        let finalData = null;
-        await new Promise((resolve) => {
-          es.onmessage = (ev) => {
-            try {
-              const { msg } = JSON.parse(ev.data);
-              if (msg === 'done') { es.close(); resolve(); return; }
-              logEl.textContent += msg + '\n';
-              logEl.scrollTop = logEl.scrollHeight;
-            } catch {
-              logEl.textContent += ev.data + '\n';
-            }
-          };
-          es.addEventListener('final', (ev) => {
-            try {
-              finalData = JSON.parse(ev.data);
-            } catch {}
-          });
-          es.onerror = () => { es.close(); resolve(); };
-        });
-        
-        if (finalData) {
-          await render(finalData).catch(err => console.error(err));
-        } else {
-          // Fallback: try POST request if EventSource doesn't work
-          const res = await fetch('/api/refresh-campaign', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ campaignId: id })
-          });
-          if (!res.ok) {
-            const text = await res.text();
-            throw new Error(text);
-          }
-          await render();
-        }
-        
-        updateBtn.textContent = '✓ Updated!';
-        setTimeout(() => {
-          updateBtn.textContent = originalText;
-          updateBtn.disabled = false;
-        }, 2000);
-      } catch (error) {
-        logEl.textContent += `[${formatTimestamp()}] ✗ Error: ${error.message}\n`;
-        logEl.scrollTop = logEl.scrollHeight;
-        alert(`Update failed: ${error.message}`);
-        updateBtn.textContent = originalText;
-        updateBtn.disabled = false;
-      }
+      queueCampaignUpdate(id);
     });
     lastUpdateContainer.appendChild(updateBtn);
     tdLastUpdate.appendChild(lastUpdateContainer);

@@ -20,12 +20,17 @@ export default async function handler(req, res) {
     const idsParam = (req.query?.ids || '').toString();
     const ids = idsParam ? idsParam.split(/[ ,]+/).map(n => Number(n)).filter(Boolean) : undefined;
     
-    // Get existing cached data to preserve leads data
+    // Get existing cached data to preserve leads data and determine processing order
     const cached = await getCachedStats().catch(() => ({ campaigns: {} }));
     const existingCampaigns = cached.campaigns || {};
     
-    // Collect only sends/opens
-    const newData = await collectAllCampaigns(send, ids, { includeSendsOpens: true, includeLeads: false });
+    // Collect only sends/opens, passing existing campaigns for sorting
+    // collectAllCampaigns will sort: 0 sends first, then ascending by sends
+    const newData = await collectAllCampaigns(send, ids, { 
+      includeSendsOpens: true, 
+      includeLeads: false,
+      existingCampaigns 
+    });
     
     // Merge: use new sends/opens data, preserve existing leads data
     const mergedCampaigns = {};
