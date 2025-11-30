@@ -19,19 +19,19 @@ export default async function handler(req, res) {
     send('Starting refresh: sends and opens');
     const idsParam = (req.query?.ids || '').toString();
     const ids = idsParam ? idsParam.split(/[ ,]+/).map(n => Number(n)).filter(Boolean) : undefined;
-    
+
     // Get existing cached data to preserve leads data and determine processing order
     const cached = await getCachedStats().catch(() => ({ campaigns: {} }));
     const existingCampaigns = cached.campaigns || {};
-    
+
     // Collect only sends/opens, passing existing campaigns for sorting
     // collectAllCampaigns will sort: 0 sends first, then ascending by sends
-    const newData = await collectAllCampaigns(send, ids, { 
-      includeSendsOpens: true, 
+    const newData = await collectAllCampaigns(send, ids, {
+      includeSendsOpens: true,
       includeLeads: false,
-      existingCampaigns 
+      existingCampaigns
     });
-    
+
     // Merge: use new sends/opens data, preserve existing leads data
     const mergedCampaigns = {};
     for (const [id, newCampaign] of Object.entries(newData.campaigns)) {
@@ -39,23 +39,24 @@ export default async function handler(req, res) {
       mergedCampaigns[id] = {
         title: newCampaign.title,
         sender: newCampaign.sender,
+        created: newCampaign.created,
         stats: {
           ...newCampaign.stats,
           leads: existing.stats?.leads || { won: 0, lost: 0, open: 0 }
         }
       };
     }
-    
+
     // Preserve campaigns that exist in cache but weren't refreshed
     for (const [id, existing] of Object.entries(existingCampaigns)) {
       if (!mergedCampaigns[id]) {
         mergedCampaigns[id] = existing;
       }
     }
-    
+
     const finalData = { campaigns: mergedCampaigns, lastUpdated: newData.lastUpdated };
     await setCachedStats(finalData);
-    
+
     // Emit final payload
     res.write(`event: final\n`);
     res.write(`data: ${JSON.stringify(finalData)}\n\n`);

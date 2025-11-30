@@ -30,20 +30,20 @@ async function processCampaignUpdate(campaignId) {
     const date = new Date();
     return date.toISOString().replace('T', ' ').substring(0, 19);
   };
-  
+
   const button = campaignUpdateButtons.get(campaignId);
   const originalText = button ? button.textContent : 'Update';
-  
+
   try {
     campaignUpdateStatus.set(campaignId, 'processing');
     if (button) {
       button.disabled = true;
       button.textContent = 'Updating...';
     }
-    
+
     logEl.textContent += `[${formatTimestamp()}] Updating campaign ${campaignId}...\n`;
     logEl.scrollTop = logEl.scrollHeight;
-    
+
     // Use EventSource for streaming updates
     const es = new EventSource(`/api/refresh-campaign?campaignId=${campaignId}`);
     let finalData = null;
@@ -61,11 +61,11 @@ async function processCampaignUpdate(campaignId) {
       es.addEventListener('final', (ev) => {
         try {
           finalData = JSON.parse(ev.data);
-        } catch {}
+        } catch { }
       });
       es.onerror = () => { es.close(); resolve(); };
     });
-    
+
     if (finalData) {
       await render(finalData).catch(err => console.error(err));
     } else {
@@ -81,7 +81,7 @@ async function processCampaignUpdate(campaignId) {
       }
       await render();
     }
-    
+
     campaignUpdateStatus.set(campaignId, 'completed');
     if (button) {
       button.textContent = '✓ Updated!';
@@ -119,9 +119,9 @@ async function processUpdateQueue() {
   if (isProcessingQueue || updateQueue.length === 0) {
     return;
   }
-  
+
   isProcessingQueue = true;
-  
+
   while (updateQueue.length > 0) {
     const campaignId = updateQueue.shift();
     updateQueueDisplays(); // Update remaining queue positions
@@ -132,7 +132,7 @@ async function processUpdateQueue() {
       // Continue with next item in queue
     }
   }
-  
+
   isProcessingQueue = false;
 }
 
@@ -142,17 +142,17 @@ function queueCampaignUpdate(campaignId) {
   if (campaignUpdateStatus.has(campaignId)) {
     return;
   }
-  
+
   campaignUpdateStatus.set(campaignId, 'queued');
   updateQueue.push(campaignId);
-  
+
   const button = campaignUpdateButtons.get(campaignId);
   if (button) {
     const queuePosition = updateQueue.length;
     button.textContent = `Queued (${queuePosition})`;
     button.disabled = true;
   }
-  
+
   // Start processing if not already running
   processUpdateQueue();
 }
@@ -216,9 +216,9 @@ function daysSinceUpdate(lastUpdate) {
 
 function renderTable(tbody, data) {
   const entries = Object.entries(data.campaigns || {});
-  try { console.debug('renderTable entries:', entries); } catch {}
+  try { console.debug('renderTable entries:', entries); } catch { }
   console.log('renderTable entries:', entries);
-  
+
   // Clear button map to avoid stale references (will be repopulated below)
   campaignUpdateButtons.clear();
 
@@ -287,7 +287,7 @@ function renderTable(tbody, data) {
     lastUpdateContainer.style.gap = '8px';
     lastUpdateContainer.style.flexDirection = 'column';
     lastUpdateContainer.style.alignItems = 'flex-start';
-    
+
     const lastUpdateText = document.createElement('span');
     if (lastUpdateDays !== null) {
       lastUpdateText.textContent = `${lastUpdateDays} day${lastUpdateDays !== 1 ? 's' : ''}`;
@@ -312,17 +312,17 @@ function renderTable(tbody, data) {
       lastUpdateText.style.color = 'var(--md-sys-color-on-surface-variant)';
     }
     lastUpdateContainer.appendChild(lastUpdateText);
-    
+
     const updateBtn = document.createElement('button');
     updateBtn.textContent = 'Update';
     updateBtn.className = 'secondary';
     updateBtn.style.fontSize = '0.75rem';
     updateBtn.style.padding = '4px 8px';
     updateBtn.style.cursor = 'pointer';
-    
+
     // Store button reference for queue management
     campaignUpdateButtons.set(id, updateBtn);
-    
+
     // Update button state based on current status
     const status = campaignUpdateStatus.get(id);
     if (status === 'queued') {
@@ -337,7 +337,7 @@ function renderTable(tbody, data) {
       updateBtn.textContent = 'Updating...';
       updateBtn.disabled = true;
     }
-    
+
     updateBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       queueCampaignUpdate(id);
@@ -352,7 +352,17 @@ function renderTable(tbody, data) {
     a.href = `https://app.mailshake.com/${MAILSHAKE_TEAM_ID}/campaigns/all/${id}/prospects/list`;
     a.target = '_blank';
     a.rel = 'noopener';
-    a.textContent = c.title || 'Unknown Title';
+
+    let titleText = c.title || 'Unknown Title';
+    if (c.created) {
+      try {
+        const dateStr = new Date(c.created).toISOString().split('T')[0];
+        titleText = `${dateStr} ${titleText}`;
+      } catch (e) {
+        // Ignore invalid dates
+      }
+    }
+    a.textContent = titleText;
     tdTitle.appendChild(a);
     tr.appendChild(tdTitle);
 
@@ -396,10 +406,71 @@ function renderTable(tbody, data) {
   }
 }
 
+// Date filtering
+let filterStartDate = null;
+let filterEndDate = null;
+
+function setupDateFilters() {
+  const startInput = document.getElementById('filter-start-date');
+  const endInput = document.getElementById('filter-end-date');
+  const clearBtn = document.getElementById('filter-clear');
+
+  const updateFilters = () => {
+    filterStartDate = startInput.value ? new Date(startInput.value) : null;
+    filterEndDate = endInput.value ? new Date(endInput.value) : null;
+    // Set end date to end of day
+    if (filterEndDate) {
+      filterEndDate.setHours(23, 59, 59, 999);
+    }
+    render();
+  };
+
+  startInput.addEventListener('change', updateFilters);
+  endInput.addEventListener('change', updateFilters);
+
+  clearBtn.addEventListener('click', () => {
+    startInput.value = '';
+    endInput.value = '';
+    filterStartDate = null;
+    filterEndDate = null;
+    render();
+  });
+}
+
+// Initialize filters
+setupDateFilters();
+
 async function render(providedData) {
   const summary = document.getElementById('summary');
-  const tbody = document.getElementById('campaign-body');
+  const tbody = document.getElementById('campaign-table').querySelector('tbody'); // Fixed selector
   const data = providedData || await fetchStats();
+
+  // Filter campaigns
+  let campaigns = data.campaigns || {};
+  if (filterStartDate || filterEndDate) {
+    const filtered = {};
+    for (const [id, c] of Object.entries(campaigns)) {
+      if (!c.created) {
+        // If no created date, decide whether to show or hide. 
+        // Let's hide if strict filtering, or show if we want to be safe.
+        // Usually better to hide if it doesn't match criteria.
+        // But since we are just adding this feature, many won't have dates yet.
+        // Let's include them if only one bound is set? No, standard behavior is to exclude if unknown.
+        // However, for user experience, maybe we should keep them if they are "unknown"?
+        // Let's stick to strict filtering: if date is missing, it doesn't match a date range.
+        continue;
+      }
+      const created = new Date(c.created);
+      if (filterStartDate && created < filterStartDate) continue;
+      if (filterEndDate && created > filterEndDate) continue;
+      filtered[id] = c;
+    }
+    // Create a new data object with filtered campaigns for rendering
+    // We don't want to mutate the original data for summary calculation if we want summary of ALL?
+    // Usually summary should reflect filtered view.
+    data.campaigns = filtered;
+  }
+
   console.log('Render data:', data);
   console.log('Campaigns:', data.campaigns);
   console.log('Campaigns keys:', Object.keys(data.campaigns || {}));
@@ -449,7 +520,7 @@ function setupRefreshButton(buttonId, endpoint, buttonLabel) {
           }
         };
         es.addEventListener('final', (ev) => {
-          try { finalData = JSON.parse(ev.data); } catch {}
+          try { finalData = JSON.parse(ev.data); } catch { }
         });
         es.onerror = () => { es.close(); resolve(); };
       });
@@ -491,20 +562,20 @@ document.getElementById('export-won-leads').addEventListener('click', async () =
   const original = exportBtn.textContent;
   exportBtn.disabled = true;
   exportBtn.textContent = 'Exporting...';
-  
+
   try {
     const res = await fetch('/api/export-won-leads', {
       method: 'GET',
     });
-    
+
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
       throw new Error(errorData.error || `HTTP ${res.status}`);
     }
-    
+
     // Get the CSV content
     const csv = await res.text();
-    
+
     // Create a blob and download
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -515,7 +586,7 @@ document.getElementById('export-won-leads').addEventListener('click', async () =
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
-    
+
     // Show success message briefly
     exportBtn.textContent = '✓ Exported!';
     setTimeout(() => {
@@ -566,31 +637,31 @@ document.getElementById('reset-refresh-window').addEventListener('click', async 
   const original = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Resetting...';
-  
+
   const logEl = document.getElementById('log');
   const formatTimestamp = () => {
     const date = new Date();
     return date.toISOString().replace('T', ' ').substring(0, 19);
   };
-  
+
   try {
     logEl.textContent += `[${formatTimestamp()}] Resetting 12-hour refresh window...\n`;
     logEl.scrollTop = logEl.scrollHeight;
-    
+
     const res = await fetch('/api/reset-refresh-timestamps', {
       method: 'POST',
       credentials: 'include'
     });
-    
+
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
       throw new Error(errorData.error || `HTTP ${res.status}`);
     }
-    
+
     const data = await res.json();
     logEl.textContent += `[${formatTimestamp()}] ✓ ${data.message || 'Refresh window reset successfully'}\n`;
     logEl.scrollTop = logEl.scrollHeight;
-    
+
     btn.textContent = '✓ Reset!';
     setTimeout(() => {
       btn.textContent = original;

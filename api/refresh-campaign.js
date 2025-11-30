@@ -17,7 +17,7 @@ export default async function handler(req, res) {
 
   try {
     let campaignId;
-    
+
     if (req.method === 'GET') {
       // Get campaign ID from query parameter
       const url = new URL(req.url, `http://${req.headers.host}`);
@@ -30,7 +30,7 @@ export default async function handler(req, res) {
       const parsed = JSON.parse(body || '{}');
       campaignId = parsed.campaignId;
     }
-    
+
     if (!campaignId) {
       send('error: Missing campaignId');
       res.end();
@@ -38,18 +38,18 @@ export default async function handler(req, res) {
     }
 
     send(`Starting refresh for campaign ${campaignId}`);
-    
+
     const { apiKey } = getConfig();
     if (!apiKey) {
       send('error: Missing MAILSHAKE_API_KEY');
       res.end();
       return;
     }
-    
+
     // Get existing cached data to preserve other campaigns
     const cached = await getCachedStats().catch(() => ({ campaigns: {} }));
     const existingCampaigns = cached.campaigns || {};
-    
+
     // Collect stats for this single campaign (both sends/opens and leads)
     const campaignData = await collectCampaignStats(
       Number(campaignId),
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
       send,
       { includeSendsOpens: true, includeLeads: true }
     );
-    
+
     // Update the cached stats with the new campaign data
     const updatedCampaigns = {
       ...existingCampaigns,
@@ -65,20 +65,21 @@ export default async function handler(req, res) {
         title: campaignData.title,
         sender: campaignData.sender,
         stats: campaignData.stats,
-        statsComplete: campaignData.statsComplete
+        statsComplete: campaignData.statsComplete,
+        created: campaignData.created
       }
     };
-    
+
     const finalData = {
       campaigns: updatedCampaigns,
       lastUpdated: new Date().toISOString().replace(/\..+/, 'Z')
     };
-    
+
     await setCachedStats(finalData);
-    
+
     // Store refresh timestamp
     await setCampaignRefreshTimestamp(campaignData.id);
-    
+
     // Emit final payload
     res.write(`event: final\n`);
     res.write(`data: ${JSON.stringify(finalData)}\n\n`);

@@ -24,7 +24,20 @@
     <section class="summary" id="summary"></section>
 
     <section>
-      <h2>Campaigns <span id="campaign-count" class="muted"></span></h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2>Campaigns <span id="campaign-count" class="muted"></span></h2>
+        <div class="filters" style="display: flex; gap: 12px; align-items: center;">
+          <label style="display: flex; align-items: center; gap: 8px;">
+            Start:
+            <input type="date" id="filter-start-date" style="padding: 4px 8px; border: 1px solid var(--md-sys-color-outline); border-radius: 4px;">
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px;">
+            End:
+            <input type="date" id="filter-end-date" style="padding: 4px 8px; border: 1px solid var(--md-sys-color-outline); border-radius: 4px;">
+          </label>
+          <button id="filter-clear" class="secondary" style="padding: 4px 12px;">Clear</button>
+        </div>
+      </div>
       <div class="table-wrap">
         <table class="data" id="campaign-table">
           <thead>
